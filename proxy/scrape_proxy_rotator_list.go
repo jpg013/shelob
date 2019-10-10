@@ -2,9 +2,9 @@ package proxy
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	dom "github.com/jpg013/go_dom"
 	"golang.org/x/net/html"
@@ -41,14 +41,6 @@ func parseProxyPort(n *html.Node) int {
 
 	if err != nil || port == 0 {
 		log.Println("unable to convert imgSrc to port " + txt)
-
-		// Persist unknown proxy port to datastore
-		proxyPortImg := &UnknownProxyPort{
-			FilePath: filePath,
-			OCRText:  txt,
-		}
-
-		proxyPortImg.Insert()
 	}
 
 	return port
@@ -110,6 +102,26 @@ func parseIPAddress(n *html.Node, s *html.Node) (ipaddr string) {
 	return constructIPAddressFromFragments(fs, dom.ParseStyleNodeBody(s))
 }
 
+func parseProxyLocation(n *html.Node) (loc string) {
+	c := n.FirstChild
+
+	if c != nil && c.NextSibling != nil {
+		loc = strings.TrimSpace(c.NextSibling.Data)
+	}
+
+	return loc
+}
+
+func parseProxyProtocol(n *html.Node) (protocol string) {
+	c := n.FirstChild
+
+	if c != nil {
+		protocol = strings.TrimSpace(c.Data)
+	}
+
+	return protocol
+}
+
 func ScrapeProxyRotatorList(doc *html.Node) {
 	// Get table rows && loop over each tr in list
 	for _, tr := range getTableRows(doc) {
@@ -123,6 +135,8 @@ func ScrapeProxyRotatorList(doc *html.Node) {
 			continue
 		}
 
+		loc := parseProxyLocation(tds[3])
+		protocol := parseProxyProtocol(tds[5])
 		nstyle := dom.QuerySelector("style", tr)
 
 		if nstyle == nil {
@@ -137,20 +151,7 @@ func ScrapeProxyRotatorList(doc *html.Node) {
 			continue
 		}
 
-		fmt.Println(ipaddr)
-
-		// frags := make([]*IPFrag, 0)
-		// for _, a := range addrNodes {
-		// 	frags = append(frags, IterateSiblings(a)...)
-		// }
-
-		// ip := constructIPAddressFromFragments(frags, styleData)
-
-		// proxy := &Proxy{
-		// 	IPAddress: ip,
-		// 	Port:      port,
-		// }
-
-		// ps = append(ps, proxy)
+		proxy := NewProxy(ipaddr, port, protocol, loc)
+		proxy.Insert()
 	}
 }
