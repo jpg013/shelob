@@ -19,15 +19,15 @@ var (
 	// ProxyURLList represents list of urls to fetch proxy ip data from.
 	ProxyURLList = []string{
 		"https://www.proxyrotator.com/free-proxy-list/1",
-		// "https://www.proxyrotator.com/free-proxy-list/2",
-		// "https://www.proxyrotator.com/free-proxy-list/3",
-		// "https://www.proxyrotator.com/free-proxy-list/4",
-		// "https://www.proxyrotator.com/free-proxy-list/5",
-		// "https://www.proxyrotator.com/free-proxy-list/6",
-		// "https://www.proxyrotator.com/free-proxy-list/7",
-		// "https://www.proxyrotator.com/free-proxy-list/8",
-		// "https://www.proxyrotator.com/free-proxy-list/9",
-		// "https://www.proxyrotator.com/free-proxy-list/10",
+		"https://www.proxyrotator.com/free-proxy-list/2",
+		"https://www.proxyrotator.com/free-proxy-list/3",
+		"https://www.proxyrotator.com/free-proxy-list/4",
+		"https://www.proxyrotator.com/free-proxy-list/5",
+		"https://www.proxyrotator.com/free-proxy-list/6",
+		"https://www.proxyrotator.com/free-proxy-list/7",
+		"https://www.proxyrotator.com/free-proxy-list/8",
+		"https://www.proxyrotator.com/free-proxy-list/9",
+		"https://www.proxyrotator.com/free-proxy-list/10",
 	}
 )
 
