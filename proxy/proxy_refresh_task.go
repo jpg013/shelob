@@ -19,22 +19,22 @@ var (
 	// ProxyURLList represents list of urls to fetch proxy ip data from.
 	ProxyURLList = []string{
 		"https://www.proxyrotator.com/free-proxy-list/1",
-		"https://www.proxyrotator.com/free-proxy-list/2",
-		"https://www.proxyrotator.com/free-proxy-list/3",
-		"https://www.proxyrotator.com/free-proxy-list/4",
-		"https://www.proxyrotator.com/free-proxy-list/5",
-		"https://www.proxyrotator.com/free-proxy-list/6",
-		"https://www.proxyrotator.com/free-proxy-list/7",
-		"https://www.proxyrotator.com/free-proxy-list/8",
-		"https://www.proxyrotator.com/free-proxy-list/9",
-		"https://www.proxyrotator.com/free-proxy-list/10",
+		// "https://www.proxyrotator.com/free-proxy-list/2",
+		// "https://www.proxyrotator.com/free-proxy-list/3",
+		// "https://www.proxyrotator.com/free-proxy-list/4",
+		// "https://www.proxyrotator.com/free-proxy-list/5",
+		// "https://www.proxyrotator.com/free-proxy-list/6",
+		// "https://www.proxyrotator.com/free-proxy-list/7",
+		// "https://www.proxyrotator.com/free-proxy-list/8",
+		// "https://www.proxyrotator.com/free-proxy-list/9",
+		// "https://www.proxyrotator.com/free-proxy-list/10",
 	}
 )
 
 type ProxyRefreshTask struct {
 	requestThrottle <-chan time.Time
-	responseCh      chan *http.Response
 	inProgress      bool
+	proxyChan       chan *Proxy
 	mux             sync.Mutex
 }
 
@@ -44,29 +44,21 @@ func NewProxyRefreshTask() *ProxyRefreshTask {
 	}
 }
 
-func ParseProxyResponse(resp *http.Response) {
-	defer resp.Body.Close()
-
-	doc, err := dom.ParseHTMLDocument(resp.Body)
-
-	if err != nil {
-		log.Fatal(fmt.Sprintf("error parsing html document: %v", err))
-	}
-
-	ScrapeProxyRotatorList(doc)
-}
-
 func (p *ProxyRefreshTask) fetchProxyList(url string) {
-	log.Println("Fetch proxy list : ", url)
-
 	resp, err := http.Get(url)
 
 	if err != nil {
-		log.Fatal(fmt.Sprintf("error fetching proxy list: %v", err))
-	}
+		log.Println(fmt.Sprintf("error fetching proxy list: %v", err))
+	} else {
+		defer resp.Body.Close()
+		doc, err := dom.ParseHTMLDocument(resp.Body)
 
-	// Send to response channel
-	p.responseCh <- resp
+		if err != nil {
+			log.Fatal(fmt.Sprintf("error parsing html document: %v", err))
+		}
+
+		ScrapeProxyList(doc, p.proxyChan)
+	}
 }
 
 func (p *ProxyRefreshTask) run() {
@@ -76,27 +68,32 @@ func (p *ProxyRefreshTask) run() {
 	}
 }
 
-func (p *ProxyRefreshTask) handleProxyResponse() {
+func (p *ProxyRefreshTask) scheduleRefreshTask(delay time.Duration, stop <-chan bool) {
 	go func() {
 		for {
+			go p.run()
 			select {
-			case r := <-p.responseCh:
-				go ParseProxyResponse(r)
+			case <-time.After(delay):
+				continue
+			case <-stop:
+				return
 			}
 		}
 	}()
 }
 
-func (p *ProxyRefreshTask) scheduleRefreshTask(delay time.Duration, stop chan bool) {
-	// Create stop channel
-	stop = make(chan bool)
+func (p *ProxyRefreshTask) newProxyWorker(stop <-chan bool) {
+	handlerFunc := func(p *Proxy) {
+		fmt.Println(p.IPAddress)
+		VerifyProxy(p)
+		// db.InsertOne("proxy", p)
+	}
 
 	go func() {
-		go p.run()
 		for {
 			select {
-			case <-time.After(delay):
-				go p.run()
+			case proxy := <-p.proxyChan:
+				go handlerFunc(proxy)
 			case <-stop:
 				return
 			}
@@ -115,19 +112,22 @@ func (p *ProxyRefreshTask) Start(delay time.Duration) (stop chan bool, err error
 	// Set in progress to true
 	p.inProgress = true
 
+	// Create the proxy channel
+	p.proxyChan = make(chan *Proxy)
+
 	// throttle rate in seconds
 	rate := time.Second
 
 	// create the rate limiter
 	p.requestThrottle = time.Tick(rate)
 
-	// create response channel
-	p.responseCh = make(chan *http.Response, 100)
-
 	// Create stop channel
 	stop = make(chan bool)
 
-	p.handleProxyResponse()
+	// Start the new proxy channel handler
+	p.newProxyWorker(stop)
+
+	// Start the refresh task
 	p.scheduleRefreshTask(delay, stop)
 
 	return stop, err
