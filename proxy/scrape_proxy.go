@@ -2,12 +2,15 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"shelob/db"
 	"strconv"
 	"strings"
 
 	dom "github.com/jpg013/go_dom"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/net/html"
 )
 
@@ -17,9 +20,67 @@ type IPFrag struct {
 	Classname string
 }
 
+type Executor func(*html.Node) interface{}
+
+type Pipeline interface {
+	Pipe(executor Executor) Pipeline
+	Merge() chan *html.Node
+}
+
+type Collector struct {
+	executors []Executor
+	dataCh    chan *html.Node
+}
+
+func (c *Collector) Merge() chan interface{} {
+	for i := 0; i < len(c.executors); i++ {
+		fn := c.executors[i]
+		c.dataCh = run(fn, c.dataCh)
+	}
+
+	return c.dataCh
+}
+
+func run(fn Executor, inCh chan interface{}) chan interface{} {
+	outCh := make(chan interface{})
+
+	go func() {
+		defer close(outCh)
+
+		for n := range inCh {
+			outCh <- fn(n)
+		}
+	}()
+
+	return outCh
+}
+
+func (c *Collector) Pipe(fn Executor) Pipeline {
+	c.executors = append(c.executors, fn)
+	return c
+}
+
+func NewCollector(in chan interface{}) Pipeline {
+	return &Collector{
+		dataCh:    in,
+		executors: make([]Executor, 0),
+	}
+}
+
 func parsePort(n *html.Node) (port int) {
 	// Extract the base64 image src for port image
 	imgSrc := dom.ParseImageSrc(n)
+
+	filter := bson.M{"hash_state": hashString(imgSrc), "port": bson.M{"$exists": true, "$gt": 0}}
+	options := options.Find()
+
+	// // Limit by 10 documents only
+	options.SetLimit(1)
+	docs, _ := db.Find("proxy_port_hash", filter, options)
+
+	if len(docs) > 0 {
+		fmt.Println(docs)
+	}
 
 	// process port image and extract txt
 	txt, err := Base64ImgToText(imgSrc)
@@ -28,15 +89,11 @@ func parsePort(n *html.Node) (port int) {
 		log.Println("error converting base 64 image text: ", err.Error())
 	}
 
-	// Attempt to convert text to int
+	// convert text to int
 	port, err = strconv.Atoi(txt)
 
-	// Create a db entry for any ports we are unable to parse
-	if err != nil {
-		unknownProxyPort := NewUnknownProxyPort(imgSrc, txt)
-		db.InsertOne("unknown_proxy_port", unknownProxyPort)
-		return port
-	}
+	proxyPortHash := NewProxyPortHash(imgSrc, port)
+	db.InsertOne("proxy_port_hash", proxyPortHash)
 
 	return port
 }
@@ -173,18 +230,49 @@ func ScrapeProxy(tr *html.Node, ch chan<- *Proxy) {
 	ch <- NewProxy(ip, port, protocol, loc)
 }
 
-func ScrapeProxyList(doc *html.Node, ch chan<- *Proxy) {
-	// Get table rows && loop over each tr in list
-	for _, tr := range getTableRows(doc) {
-		go ScrapeProxy(tr, ch)
+func ScrapeProxyList(doc *html.Node, outCh chan<- *Proxy) {
+	// Get table rows and loop over each tr in list
+	// inCh := gen(getTableRows(doc))
+	// c1 := doWork(inCh)
+	// c2
 
-		// id, err := db.InsertOne("proxy", proxy)
+	// for _, tr := range getTableRows(doc) {
+	// 	go ScrapeProxy(tr, outCh)
 
-		// if err != nil {
-		// 	log.Fatal(err.Error())
-		// }
+	// 	// id, err := db.InsertOne("proxy", proxy)
 
-		// log.SetOutput(os.Stdout)
-		// log.Println("inserted id: " + id)
-	}
+	// 	// if err != nil {
+	// 	// 	log.Fatal(err.Error())
+	// 	// }
+
+	// 	// log.SetOutput(os.Stdout)
+	// 	// log.Println("inserted id: " + id)
+	// }
+}
+
+func doWork(inCh <-chan *html.Node) <-chan string {
+	outCh := make(chan string)
+
+	go func() {
+		for n := range inCh {
+			tds := dom.QuerySelectorAll("td", n)
+
+			// do some stuff
+			outCh <- parseProtocol(tds[5])
+		}
+	}()
+
+	return outCh
+}
+
+func gen(ns []*html.Node) <-chan *html.Node {
+	outCh := make(chan *html.Node)
+
+	go func() {
+		for _, n := range ns {
+			outCh <- n
+		}
+	}()
+
+	return outCh
 }

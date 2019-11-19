@@ -32,6 +32,6 @@ func NewProxy(addr string, port int, protocol string, loc string) *Proxy {
 		CreatedAt:     time.Now(),
 		IsAnonymous:   false,
 		IsDeactivated: false,
-		Socket:        fmt.Sprintf("%v://%v:%v", protocol, addr, string(port)),
+		Socket:        fmt.Sprintf("%v:%d", addr, port),
 	}
 }

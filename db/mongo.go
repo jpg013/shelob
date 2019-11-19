@@ -50,7 +50,7 @@ func OpenConnection() {
 	}
 }
 
-// InsertOne inserts bson docuemnt data into collection and returns the insertedID
+// InsertOne inserts bson document data into collection and returns the insertedID
 func InsertOne(coll string, document interface{}) (string, error) {
 	if client == nil {
 		OpenConnection()
@@ -69,16 +69,21 @@ func InsertOne(coll string, document interface{}) (string, error) {
 	return res.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
-// bson.D{}
-func Find(coll string, query interface{}) ([]bson.M, error) {
+func Find(coll string, filter bson.M, opts ...*options.FindOptions) ([]bson.M, error) {
+	// options := options.Find()
+
+	// // Limit by 10 documents only
+	// options.SetLimit(1)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	collection := client.Database(config.Database).Collection(coll)
-	cur, err := collection.Find(ctx, query)
+	cur, err := collection.Find(ctx, filter, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer cur.Close(ctx)
+
 	results := make([]bson.M, 0)
 	for cur.Next(ctx) {
 		var result bson.M
