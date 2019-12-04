@@ -41,6 +41,7 @@ func init() {
 
 	db.LoadConfig()
 	db.OpenConnection()
+	db.ExampleNewClient()
 }
 
 func main() {

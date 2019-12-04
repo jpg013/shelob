@@ -12,26 +12,23 @@ import (
 // Base64ImgToText takes a base64 image source and calls the OCR service to
 // extract the image text
 func Base64ImgToText(base64Str string) (string, error) {
-	reqBody, err := json.Marshal(map[string]string{
-		"base64_string": getBase64StringData(base64Str),
-		"extension":     getBase64StringExtension(base64Str),
-	})
+	reqBody, err := json.Marshal(map[string]string{"base64_string": base64Str})
 
 	if err != nil {
 		return "", err
 	}
 
 	client := http.Client{
-		Timeout: time.Duration(30 * time.Second),
+		Timeout: time.Duration(60 * time.Second),
 	}
 
-	request, err := http.NewRequest("POST", "http://localhost:8080/base64_image_text", bytes.NewBuffer(reqBody))
-	request.Header.Set("Content-type", "application/json")
+	request, err := http.NewRequest("POST", "http://localhost:8080/base64_image_ocr", bytes.NewBuffer(reqBody))
 
 	if err != nil {
 		return "", err
 	}
 
+	request.Header.Set("Content-type", "application/json")
 	resp, err := client.Do(request)
 
 	if err != nil {
@@ -41,12 +38,14 @@ func Base64ImgToText(base64Str string) (string, error) {
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
+	var obj map[string]string
+	err = json.Unmarshal(body, &obj)
 
 	if err != nil {
 		return "", err
 	}
 
-	return string(body), nil
+	return obj["task_key"], nil
 }
 
 func getBase64StringExtension(str string) string {

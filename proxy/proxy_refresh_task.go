@@ -57,7 +57,7 @@ func (p *ProxyRefreshTask) fetchProxyList(url string) {
 			log.Fatal(fmt.Sprintf("error parsing html document: %v", err))
 		}
 
-		ScrapeProxyList(doc, p.proxyChan)
+		go ScrapeProxyList(doc, p.proxyChan)
 	}
 }
 
