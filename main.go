@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"shelob/db"
 	"shelob/proxy"
-	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -45,16 +44,14 @@ func init() {
 }
 
 func main() {
-	// makeRequest()
-	refreshTask := proxy.NewProxyRefreshTask()
-	_, err := refreshTask.Start(2 * time.Minute)
+	refreshTask := proxy.NewRefreshTask()
+	cancel, err := refreshTask.Start()
 
 	if err != nil {
 		log.Fatal("error starting proxy refresh task: ", err.Error())
 	}
 
-	http.HandleFunc("/", HelloServer)
-	http.ListenAndServe(":9000", nil)
+	<-cancel
 
 	// proxyURL, err := url.Parse("http://46.247.58:3130")
 
@@ -88,8 +85,4 @@ func main() {
 	// }
 
 	// fmt.Println(string(body))
-}
-
-func HelloServer(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, %s!", r.URL.Path[1:])
 }

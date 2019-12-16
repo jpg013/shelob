@@ -8,7 +8,7 @@ type ProxyPortHash struct {
 	ID          primitive.ObjectID `bson:"_id"`
 	Port        int                `bson:"port"`
 	HashState   string             `bson:"hash_state"`
-	Base64Image string             `bson:"base64_image`
+	Base64Image string             `bson:"base64_image"`
 }
 
 // NewProxyPortHash factory func returns a pointer to a new UnknownProxySource instance structure
